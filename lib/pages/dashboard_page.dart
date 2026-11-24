@@ -1,10 +1,15 @@
+// Mengimpor antarmuka Material Design Flutter
 import 'package:flutter/material.dart';
+// Mengimpor format mata uang
 import 'package:intl/intl.dart';
 
+// Mengimpor model data, database helper, dan formulir produk
 import '../models/produk.dart';
 import '../helpers/database_helper.dart';
 import 'form_produk_page.dart';
+import 'kelola_pelanggan_page.dart';
 
+// Halaman Beranda & Katalog Kasir SmartKasir
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -13,31 +18,31 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  // Indeks kategori aktif terpilih
   int _kategoriTerpilih = 0;
-  final List<String> _kategoriList = [
-    'Semua',
-    'Makanan',
-    'Minuman',
-    'Snack',
-    'Dessert',
-  ];
+  final List<String> _kategoriList = ['Semua', 'Makanan', 'Minuman', 'Snack'];
 
+  // Variabel penampung hasil asinkron basis data SQLite
   late Future<List<Produk>> _produkFuture;
 
+  // Controller kotak pencarian
   final _searchController = TextEditingController();
   String _keywordPencarian = '';
 
+  // Format mata uang Rupiah
   String _formatRupiah(double nominal) {
-    return NumberFormat.currency(
+    final formatCurrency = NumberFormat.currency(
       locale: 'id_ID',
       symbol: 'Rp ',
       decimalDigits: 0,
-    ).format(nominal);
+    );
+    return formatCurrency.format(nominal);
   }
 
   @override
   void initState() {
     super.initState();
+    // Memuat data produk pertama kali saat dashboard dibuka
     _muatDataProduk();
   }
 
@@ -47,14 +52,16 @@ class _DashboardPageState extends State<DashboardPage> {
     super.dispose();
   }
 
-  // Memuat ulang data dari SQLite (cari atau filter kategori)
+  // Memuat ulang data katalog dari SQLite
   void _muatDataProduk() {
     setState(() {
       if (_keywordPencarian.trim().isNotEmpty) {
+        // Jika ada pencarian, gunakan searchProduk (SQL LIKE)
         _produkFuture = DatabaseHelper.instance.searchProduk(
           _keywordPencarian.trim(),
         );
       } else {
+        // Jika tidak mencari, filter berdasarkan kategori
         _produkFuture = DatabaseHelper.instance.getProdukByKategori(
           _kategoriList[_kategoriTerpilih],
         );
@@ -62,8 +69,8 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
-  // Dialog konfirmasi hapus
-  void _konfirmasiHapusProduk(BuildContext context, Produk item) {
+  // --- DIALOG KONFIRMASI HAPUS PRODUK ---
+  void _konfirmasiHapusProduk(Produk item) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -86,7 +93,8 @@ class _DashboardPageState extends State<DashboardPage> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
-              Navigator.pop(ctx);
+              Navigator.pop(ctx); // Tutup dialog modal
+              // Eksekusi DELETE ke SQLite
               await DatabaseHelper.instance.deleteProduk(item.id!);
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
@@ -98,6 +106,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   behavior: SnackBarBehavior.floating,
                 ),
               );
+              // Muat ulang katalog beranda
               _muatDataProduk();
             },
             child: const Text('Hapus', style: TextStyle(color: Colors.white)),
@@ -107,6 +116,7 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  // Helper pembuat badge stok
   Widget _buildBadgeStok(int stok) {
     Color warnaLatar;
     Color warnaTeks;
@@ -143,16 +153,20 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  // Helper pembuat kartu produk di dalam Grid
   Widget _buildProductCard(Produk item) {
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0), // Garis pembatas halus
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(20),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 8,
             spreadRadius: 1,
             offset: const Offset(0, 3),
@@ -162,7 +176,7 @@ class _DashboardPageState extends State<DashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Foto + badge promo
+          // 1. FOTO PRODUK (TINGGI 105 SERAGAM)
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             child: Stack(
@@ -174,7 +188,6 @@ class _DashboardPageState extends State<DashboardPage> {
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) => Container(
                     height: 105,
-                    width: double.infinity,
                     color: Colors.grey.shade200,
                     child: const Icon(
                       Icons.fastfood,
@@ -183,6 +196,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                   ),
                 ),
+                // Badge diskon promo
                 if (item.diskonPersen > 0)
                   Positioned(
                     top: 6,
@@ -210,7 +224,7 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
 
-          // Nama, stok, harga
+          // 2. DESKRIPSI & HARGA PRODUK
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
             child: Column(
@@ -241,13 +255,19 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           const Spacer(),
 
-          // Tombol aksi: Edit, Hapus, Keranjang
+          // 3. BARIS TOMBOL AKSI (EDIT, HAPUS, TAMBAH KE CART)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            color: Colors.grey.shade50,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(12),
+              ),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                // Tombol Edit Produk
                 IconButton(
                   icon: const Icon(
                     Icons.edit_outlined,
@@ -258,6 +278,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   padding: const EdgeInsets.all(4),
                   constraints: const BoxConstraints(),
                   onPressed: () async {
+                    // Navigasi ke Form Edit dengan membawa objek produk
                     final refresh = await Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -267,6 +288,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     if (refresh == true) _muatDataProduk();
                   },
                 ),
+                // Tombol Hapus Produk
                 IconButton(
                   icon: const Icon(
                     Icons.delete_outline,
@@ -276,8 +298,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   tooltip: 'Hapus Produk',
                   padding: const EdgeInsets.all(4),
                   constraints: const BoxConstraints(),
-                  onPressed: () => _konfirmasiHapusProduk(context, item),
+                  onPressed: () => _konfirmasiHapusProduk(item),
                 ),
+                // Tombol Tambah ke Keranjang Kasir
                 IconButton(
                   icon: const Icon(
                     Icons.add_shopping_cart,
@@ -312,7 +335,6 @@ class _DashboardPageState extends State<DashboardPage> {
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.point_of_sale, color: Color(0xFFFBBF24)),
             SizedBox(width: 8),
@@ -342,7 +364,7 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       body: Column(
         children: [
-          // Banner omzet
+          // 1. BANNER TOTAL TRANSAKSI HARIAN
           Container(
             width: double.infinity,
             margin: const EdgeInsets.all(16),
@@ -404,7 +426,105 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
 
-          // Kotak pencarian (SQL LIKE)
+          // BARIS AKSI PINTAS CEPAT: KELOLA PELANGGAN & TAMBAH PRODUK
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const KelolaPelangganPage(),
+                        ),
+                      );
+                      _muatDataProduk();
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.people_alt_outlined,
+                            size: 18,
+                            color: Color(0xFF1E3A8A),
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Kelola Pelanggan',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1E3A8A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InkWell(
+                    onTap: () async {
+                      final refresh = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const FormProdukPage(),
+                        ),
+                      );
+                      if (refresh == true) _muatDataProduk();
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E3A8A),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.add_box_outlined,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Tambah Produk',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // 2. KOTAK PENCARIAN CEPAT (SQL LIKE)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
@@ -414,7 +534,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 _muatDataProduk();
               },
               decoration: InputDecoration(
-                hintText: 'Cari nama produk kasir ...',
+                hintText: 'Cari nama produk ...',
                 prefixIcon: const Icon(Icons.search, color: Color(0xFF1E3A8A)),
                 suffixIcon: _keywordPencarian.isNotEmpty
                     ? IconButton(
@@ -445,7 +565,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           const SizedBox(height: 12),
 
-          // Filter kategori
+          // 3. FILTER CHIP HORIZONTAL KATEGORI
           SizedBox(
             height: 38,
             child: ListView.builder(
@@ -461,7 +581,6 @@ class _DashboardPageState extends State<DashboardPage> {
                     selected: isSelected,
                     selectedColor: const Color(0xFF1E3A8A),
                     backgroundColor: Colors.white,
-                    showCheckmark: false,
                     labelStyle: TextStyle(
                       color: isSelected ? Colors.white : Colors.black87,
                       fontWeight: isSelected
@@ -471,10 +590,12 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                     onSelected: (selected) {
                       if (selected) {
-                        _kategoriTerpilih = index;
-                        _searchController.clear();
-                        _keywordPencarian = '';
-                        _muatDataProduk();
+                        setState(() {
+                          _kategoriTerpilih = index;
+                          _searchController.clear();
+                          _keywordPencarian = '';
+                          _muatDataProduk();
+                        });
                       }
                     },
                   ),
@@ -484,15 +605,17 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
           const SizedBox(height: 12),
 
-          // Katalog dari SQLite (FutureBuilder)
+          // 4. DAFTAR KATALOG DENGAN FUTUREBUILDER
           Expanded(
             child: FutureBuilder<List<Produk>>(
               future: _produkFuture,
               builder: (context, snapshot) {
+                // KONDISI 1: Loading
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
+                // KONDISI 2: Error
                 if (snapshot.hasError) {
                   return Center(
                     child: Padding(
@@ -505,6 +628,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   );
                 }
 
+                // KONDISI 3: Data Kosong
                 final daftarProduk = snapshot.data ?? [];
                 if (daftarProduk.isEmpty) {
                   return Center(
@@ -531,11 +655,12 @@ class _DashboardPageState extends State<DashboardPage> {
                   );
                 }
 
+                // KONDISI 4: Sukses
                 return GridView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    mainAxisExtent: 220,
+                    mainAxisExtent: 220, // Tinggi kartu tetap
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
                   ),
